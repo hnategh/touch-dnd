@@ -475,14 +475,21 @@
     this.el     = $(element)
     this.opts   = opts
     this.cancel = opts.handle !== false
-  }
+    this.delay  = opts.delay
+    this.timeout  = null
+   }
 
   Draggable.prototype.create = function() {
     this.el
     .on(START_EVENT, $.proxy(this.start, this))
     .css('touch-action', 'double-tap-zoom')
     .css('-ms-touch-action', 'double-tap-zoom')
-
+    if (this.delay > 0) {
+      this.el.on(END_EVENT, function(){
+        clearTimeout(this.timeout);
+        this.timeout = null;
+      }.bind(this))
+    }
     dragging.on('dragging:stop', $.proxy(this.reset, this))
 
     var self = this
@@ -507,60 +514,70 @@
   }
 
   Draggable.prototype.start = function(e) {
-    if (this.opts.disabled) {
-      return false
-    }
 
-    // only start on left mouse button
-    if (e.type === 'mousedown' && e.which !== 1) {
-      return false
-    }
-
-    e = e.originalEvent || e // zepto <> jquery compatibility
-
-    if (this.opts.cancel) {
-      var target = $(e.target)
-      while (target[0] !== this.el[0]) {
-        if (target.is(this.opts.cancel)) return
-        target = target.parent()
+    let start = function(){
+      if (this.opts.disabled) {
+        return false
       }
-    }
 
-    if (this.opts.handle) {
-      var target = $(e.target), isHandle = false
-      while (target[0] !== this.el[0]) {
-        if (target.is(this.opts.handle)) {
-          isHandle = true
-          break
-        }
-        target = target.parent()
+      // only start on left mouse button
+      if (e.type === 'mousedown' && e.which !== 1) {
+        return false
       }
-      if (!isHandle) return
-    }
 
-    // prevent text selection
-    e.preventDefault()
+      e = e.originalEvent || e // zepto <> jquery compatibility
 
-    var el = this.el, helper
-    if (this.opts.clone) {
-      if (typeof this.opts.clone === 'function') {
-        helper = this.opts.clone.call(this.el)
-      } else {
-        helper = this.el.clone()
-        if (this.opts.cloneClass) {
-          helper.addClass(this.opts.cloneClass)
+      if (this.opts.cancel) {
+        var target = $(e.target)
+        while (target[0] !== this.el[0]) {
+          if (target.is(this.opts.cancel)) return
+          target = target.parent()
         }
       }
-      var position = this.el.position()
-      helper.css('position', 'absolute')
+
+      if (this.opts.handle) {
+        var target = $(e.target), isHandle = false
+        while (target[0] !== this.el[0]) {
+          if (target.is(this.opts.handle)) {
+            isHandle = true
+            break
+          }
+          target = target.parent()
+        }
+        if (!isHandle) return
+      }
+
+      // prevent text selection
+      //e.preventDefault()
+
+      var el = this.el, helper
+      if (this.opts.clone) {
+        if (typeof this.opts.clone === 'function') {
+          helper = this.opts.clone.call(this.el)
+        } else {
+          helper = this.el.clone()
+          if (this.opts.cloneClass) {
+            helper.addClass(this.opts.cloneClass)
+          }
+        }
+        var position = this.el.position()
+        helper.css('position', 'absolute')
             .css('left', position.left).css('top', position.top)
             .width(this.el.width()).height(this.el.height())
-      helper.insertAfter(this.el)
+        helper.insertAfter(this.el)
+      }
+
+      dragging.start(this, this.el, e, helper)
+
+      trigger(this.el, 'draggable:start', e, { item: dragging.el })
+    }.bind(this);
+    if (this.delay > 0)
+    {
+      if (this.timeout != null) clearTimeout(this.timeout);
+      this.timeout = setTimeout(start, this.delay);
+    } else {
+      start();
     }
-
-    dragging.start(this, this.el, e, helper)
-
-    trigger(this.el, 'draggable:start', e, { item: dragging.el })
   }
 
   Draggable.prototype.reset = function(e, last) {
